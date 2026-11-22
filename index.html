@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ЛР: КПД электродвигателя</title>
+    <style>
+        :root {
+            --primary: #2b6cb0;
+            --primary-light: #ebf8ff;
+            --accent: #38a169;
+            --accent-hover: #2f855a;
+            --reset: #dd6b20;
+            --bg: #f7fafc;
+            --card: #ffffff;
+            --text: #2d3748;
+            --text-muted: #718096;
+            --border: #e2e8f0;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            line-height: 1.5;
+            font-size: 15px;
+            padding-bottom: 40px;
+        }
+        
+        .header {
+            background: var(--card);
+            padding: 16px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border-bottom: 1px solid var(--border);
+        }
+        .header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; color: var(--primary); }
+        .header .subtitle { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+        .progress-bar { height: 3px; background: var(--border); margin-top: 12px; border-radius: 2px; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--accent); width: 25%; transition: width 0.3s ease; }
+
+        .tabs {
+            display: flex;
+            background: var(--card);
+            overflow-x: auto;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 73px;
+            z-index: 99;
+            scrollbar-width: none;
+        }
+        .tabs::-webkit-scrollbar { display: none; }
+        .tab {
+            flex: 0 0 auto;
+            padding: 12px 16px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+
+        .page { display: none; padding: 16px; animation: fadeIn 0.3s ease; }
+        .page.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+            border: 1px solid var(--border);
+        }
+        .card h2 { margin: 0 0 12px; font-size: 1.05rem; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+        .card p { margin: 6px 0; }
+
+        .formula {
+            background: var(--primary-light);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            font-family: "Cambria Math", Georgia, serif;
+            font-size: 1.1rem;
+            margin: 10px 0;
+            border-left: 4px solid var(--primary);
+            color: var(--primary);
+        }
+
+        .notebook {
+            background: #fffff0;
+            border: 1px dashed #d69e2e;
+            border-radius: 8px;
+            padding: 14px;
+            font-size: 0.9rem;
+            color: #744210;
+        }
+        .notebook strong { color: #975a16; }
+
+        /* Таблица для перерисовки */
+        .lab-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+            font-size: 0.85rem;
+            background: #fff;
+        }
+        .lab-table th, .lab-table td {
+            border: 1px solid var(--border);
+            padding: 8px 4px;
+            text-align: center;
+        }
+        .lab-table th {
+            background: var(--primary-light);
+            color: var(--primary);
+            font-weight: 600;
+        }
+        .lab-table td {
+            height: 32px; /* Пустые ячейки для визуализации */
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        /* Стенд */
+        canvas {
+            display: block;
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+            margin: 0 auto 16px;
+            background: linear-gradient(to bottom, #ffffff 0%, #f7fafc 100%);
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.03);
+        }
+
+        .gauges {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .gauge {
+            background: var(--card);
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+        .gauge-face {
+            position: relative;
+            width: 100px;
+            height: 100px;
+            margin: 0 auto;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #ffffff, #edf2f7);
+            border: 3px solid var(--primary);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);
+        }
+        .needle {
+            position: absolute;
+            left: 50%; bottom: 50%;
+            width: 2px; height: 40px;
+            background: #e53e3e;
+            transform-origin: bottom center;
+            transform: translateX(-50%) rotate(-120deg);
+            transition: transform 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
+            border-radius: 2px;
+            z-index: 2;
+        }
+        .center-dot {
+            position: absolute;
+            left: 50%; top: 50%;
+            width: 8px; height: 8px;
+            background: var(--primary);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 3;
+        }
+        .gauge-label { font-size: 0.75rem; color: var(--text-muted); margin-top: 6px; font-weight: 500; }
+        .gauge-value { font-family: "Courier New", monospace; font-size: 1.2rem; color: #e53e3e; font-weight: 700; margin-top: 4px; }
+
+        .timer {
+            text-align: center;
+            font-family: "Courier New", monospace;
+            font-size: 2rem;
+            color: var(--accent);
+            background: #1a202c;
+            padding: 12px;
+            border-radius: 8px;
+            letter-spacing: 2px;
+            margin-bottom: 16px;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .controls { display: flex; flex-direction: column; gap: 12px; }
+        .motor-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            background: var(--bg);
+            padding: 4px;
+            border-radius: 8px;
+        }
+        .motor-btn {
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--text-muted);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .motor-btn.active { background: var(--card); color: var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+        .input-group { display: flex; align-items: center; gap: 12px; }
+        .input-group label { font-weight: 600; min-width: 100px; }
+        .input-group input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            height: 48px;
+            text-align: center;
+        }
+
+        .btn {
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            min-height: 48px;
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-primary:disabled { background: #cbd5e0; cursor: not-allowed; }
+        .btn-reset { background: var(--reset); color: white; }
+        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+        .task {
+            background: var(--card);
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-left: 4px solid var(--primary);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+        .task-num { font-weight: 700; color: var(--primary); margin-bottom: 6px; font-size: 0.9rem; }
+        .task-text { font-size: 0.95rem; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>⚡ Лабораторная работа</h1>
+    <div class="subtitle">Определение КПД электродвигателя</div>
+    <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+</div>
+
+<div class="tabs">
+    <button class="tab active" onclick="showPage('theory', 25)">1. Теория</button>
+    <button class="tab" onclick="showPage('experiment', 50)">2. Эксперимент</button>
+    <button class="tab" onclick="showPage('tasks', 75)">3. Задания</button>
+    <button class="tab" onclick="showPage('report', 100)">4. Отчёт</button>
+</div>
+
+<!-- СТРАНИЦА 1: ТЕОРИЯ -->
+<div class="page active" id="theory">
+    <div class="card">
+        <h2>🎯 Цель работы</h2>
+        <p>Экспериментально определить и сравнить коэффициент полезного действия (КПД) двух разных электродвигателей при различной механической нагрузке.</p>
+    </div>
+
+    <div class="card">
+        <h2>📚 Основные формулы</h2>
+        <div class="formula">η = (A<sub>пол</sub> / A<sub>затр</sub>) · 100%</div>
+        <p><b>Полезная работа</b> (подъём груза):</p>
+        <div class="formula">A<sub>пол</sub> = m · g · h</div>
+        <p><b>Затраченная работа</b> (электрическая):</p>
+        <div class="formula">A<sub>затр</sub> = U · I · t</div>
+        <p style="font-size: 0.9rem; color: var(--text-muted); margin-top: 12px;">
+            Где: <b>m</b> – масса груза (кг), <b>g</b> = 9.8 м/с², <b>h</b> = 1.0 м, <b>U</b> = 220 В, <b>I</b> – сила тока (А), <b>t</b> – время (с).
+        </p>
+    </div>
+
+    <div class="card">
+        <h2>📝 Задание 1: Протокол измерений</h2>
+        <div class="notebook">
+            <strong>Внимание!</strong> Аккуратно перенесите эту таблицу в рабочую тетрадь. В ходе эксперимента вы будете заполнять её от руки.
+        </div>
+        <table class="lab-table">
+            <thead>
+                <tr>
+                    <th>№</th>
+                    <th>Мотор</th>
+                    <th>m, кг</th>
+                    <th>U, В</th>
+                    <th>I, А</th>
+                    <th>t, с</th>
+                    <th>A<sub>пол</sub>, Дж</th>
+                    <th>A<sub>затр</sub>, Дж</th>
+                    <th>η, %</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>1</td><td></td><td></td><td>220</td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr><td>2</td><td></td><td></td><td>220</td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr><td>3</td><td></td><td></td><td>220</td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr><td>4</td><td></td><td></td><td>220</td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr><td>5</td><td></td><td></td><td>220</td><td></td><td></td><td></td><td></td><td></td></tr>
+            </tbody>
+        </table>
+        <p style="font-size: 0.85rem; color: var(--text-muted); text-align: center;">
+            <em>Рекомендация: проведите по 5 измерений для каждого мотора с массой груза: 2, 4, 6, 8 и 10 кг.</em>
+        </p>
+    </div>
+</div>
+
+<!-- СТРАНИЦА 2: ЭКСПЕРИМЕНТ -->
+<div class="page" id="experiment">
+    <div class="card">
+        <h2>🧪 Виртуальный стенд</h2>
+        <p style="font-size: 0.9rem; color: var(--text-muted);">Выберите мотор, задайте массу и нажмите «Пуск». Запишите показания амперметра и время в свою таблицу в тетради.</p>
+        
+        <canvas id="scene" width="400" height="260"></canvas>
+
+        <div class="gauges">
+            <div class="gauge">
+                <div class="gauge-face">
+                    <div class="needle" id="needleV"></div>
+                    <div class="center-dot"></div>
+                </div>
+                <div class="gauge-label">Вольтметр</div>
+                <div class="gauge-value" id="valV">0 В</div>
+            </div>
+            <div class="gauge">
+                <div class="gauge-face">
+                    <div class="needle" id="needleA"></div>
+                    <div class="center-dot"></div>
+                </div>
+                <div class="gauge-label">Амперметр</div>
+                <div class="gauge-value" id="valA">0.00 А</div>
+            </div>
+        </div>
+
+        <div class="timer" id="timer">00.00 с</div>
+
+        <div class="controls">
+            <div class="motor-selector">
+                <button class="motor-btn active" id="btnA" onclick="setMotor('A')">Мотор А</button>
+                <button class="motor-btn" id="btnB" onclick="setMotor('Б')">Мотор Б</button>
+            </div>
+            
+            <div class="input-group">
+                <label>Масса груза, кг:</label>
+                <input type="number" id="massInput" min="1" max="10" step="1" value="2">
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-primary" id="startBtn" onclick="startExperiment()">▶ Пуск</button>
+                <button class="btn btn-reset" onclick="resetExperiment()">↺ Сброс</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>💡 Подсказка</h2>
+        <div class="notebook">
+            Не забудьте записать в тетрадь: <strong>I</strong> (показание амперметра) и <strong>t</strong> (время подъёма) для текущей массы. Напряжение <strong>U = 220 В</strong> и высота <strong>h = 1.0 м</strong> постоянны.
+        </div>
+    </div>
+</div>
+
+<!-- СТРАНИЦА 3: ЗАДАНИЯ -->
+<div class="page" id="tasks">
+    <div class="card">
+        <h2>📈 Задание 2: Графики</h2>
+        <div class="notebook">
+            Используя рассчитанные данные из вашей таблицы, <strong>постройте в тетради два графика</strong> зависимости КПД (η) от массы груза (m) на одной координатной плоскости (разными цветами для Мотора А и Мотора Б).<br><br>
+            <em>Ось X:</em> Масса m, кг (от 0 до 12)<br>
+            <em>Ось Y:</em> КПД η, % (от 0 до 100)
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>❓ Задание 3: Вопросы для отчёта</h2>
+        <p>Дайте развёрнутые ответы на следующие вопросы в вашем электронном отчёте:</p>
+        
+        <div class="task">
+            <div class="task-num">Вопрос 1</div>
+            <div class="task-text">Основываясь на ваших расчётах и графиках, какой из двух моторов имеет более высокий КПД? С чем, по вашему мнению, могут быть связаны потери энергии во втором моторе?</div>
+        </div>
+        
+        <div class="task">
+            <div class="task-num">Вопрос 2</div>
+            <div class="task-text">Как зависит сила тока, потребляемая двигателем, от массы поднимаемого груза? Является ли эта зависимость строго линейной?</div>
+        </div>
+        
+        <div class="task">
+            <div class="task-num">Вопрос 3</div>
+            <div class="task-text">Куда расходуется часть электрической энергии, которая не пошла на совершение полезной механической работы? Перечислите не менее трёх видов потерь.</div>
+        </div>
+        
+        <div class="task">
+            <div class="task-num">Вопрос 4 (Расчётный)</div>
+            <div class="task-text">Рассчитайте стоимость электроэнергии для подъёма груза массой 10 кг на высоту 10 метров с использованием Мотора Б (используйте средний КПД из ваших измерений). Примите тариф 5,5 руб. за 1 кВт·ч. (1 кВт·ч = 3 600 000 Дж).</div>
+        </div>
+    </div>
+</div>
+
+<!-- СТРАНИЦА 4: ОТЧЁТ -->
+<div class="page" id="report">
+    <div class="card">
+        <h2>📄 Оформление отчёта</h2>
+        <p>По итогам работы необходимо сдать электронный отчёт.</p>
+        <div class="notebook">
+            <strong>Инструкция:</strong><br>
+            1. Преподаватель предоставил вам образец (шаблон) отчёта.<br>
+            2. Заполните шаблон, вставив в него:<br>
+            &nbsp;&nbsp;• Фотографию или скан заполненной вами таблицы из тетради.<br>
+            &nbsp;&nbsp;• Фотографию или скан построенных графиков.<br>
+            &nbsp;&nbsp;• Текстовые ответы на 4 вопроса из вкладки «Задания».<br>
+            3. Сохраните документ в формате PDF или Word и отправьте его согласно инструкциям преподавателя.
+        </div>
+    </div>
+    
+    <div class="card">
+        <h2>✅ Чек-лист перед сдачей</h2>
+        <ul style="list-style-type: none; padding-left: 0;">
+            <li style="margin-bottom: 8px;">☐ Проведено по 5 опытов для каждого мотора.</li>
+            <li style="margin-bottom: 8px;">☐ Таблица в тетради заполнена и рассчитана.</li>
+            <li style="margin-bottom: 8px;">☐ Построены два графика зависимости η(m).</li>
+            <li style="margin-bottom: 8px;">☐ Даны ответы на все 4 вопроса.</li>
+            <li style="margin-bottom: 8px;">☐ Отчёт оформлен по выданному образцу.</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+    // --- Навигация ---
+    function showPage(pageId, progress) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        
+        document.getElementById(pageId).classList.add('active');
+        event.target.classList.add('active');
+        document.getElementById('progress').style.width = progress + '%';
+        window.scrollTo(0, 0);
+    }
+
+    // --- Физическая модель и состояние ---
+    const U = 220; // Вольт
+    const h = 1.0; // метр
+    const g = 9.8; // м/с^2
+    
+    let state = {
+        motor: 'A',
+        isRunning: false,
+        mass: 2,
+        currentI: 0,
+        startTime: 0,
+        duration: 0,
+        rotation: 0,
+        liftProgress: 0
+    };
+
+    const canvas = document.getElementById('scene');
+    const ctx = canvas.getContext('2d');
+
+    function setMotor(m) {
+        state.motor = m;
+        document.getElementById('btnA').className = m === 'A' ? 'motor-btn active' : 'motor-btn';
+        document.getElementById('btnB').className = m === 'Б' ? 'motor-btn active' : 'motor-btn';
+        resetExperiment();
+    }
+
+    function startExperiment() {
+        const mInput = document.getElementById('massInput');
+        state.mass = parseFloat(mInput.value);
+        
+        if (state.mass < 1 || state.mass > 10 || isNaN(state.mass)) {
+            alert("Пожалуйста, введите массу груза от 1 до 10 кг.");
+            return;
+        }
+
+        state.isRunning = true;
+        document.getElementById('startBtn').disabled = true;
+
+        // Физическая модель (разница скрыта, определяется через измерения)
+        // Мотор А: более эффективный (меньше ток, выше скорость)
+        // Мотор Б: менее эффективный (больше ток, ниже скорость)
+        let baseVel, idleCurrent, loadFactor;
+        
+        if (state.motor === 'A') {
+            baseVel = 0.45; 
+            idleCurrent = 0.15; 
+            loadFactor = 0.12; 
+        } else {
+            baseVel = 0.30; 
+            idleCurrent = 0.35; 
+            loadFactor = 0.20; 
+        }
+
+        // Скорость падает с нагрузкой
+        const velocity = baseVel / (1 + state.mass * 0.04);
+        state.duration = (h / velocity) * 1000; // мс
+
+        // Ток растёт с нагрузкой + небольшой случайный шум (±4%) для реалистичности
+        const noise = 0.96 + Math.random() * 0.08;
+        state.currentI = (idleCurrent + state.mass * loadFactor) * noise;
+
+        state.startTime = performance.now();
+        state.liftProgress = 0;
+        state.rotation = 0;
+        
+        updateGauges();
+    }
+
+    function resetExperiment() {
+        state.isRunning = false;
+        state.liftProgress = 0;
+        state.rotation = 0;
+        state.currentI = 0;
+        document.getElementById('timer').textContent = "00.00 с";
+        document.getElementById('startBtn').disabled = false;
+        updateGauges();
+        drawScene();
+    }
+
+    function updateGauges() {
+        // Вольтметр всегда 220В (шкала до 300В)
+        const angleV = -120 + (220 / 300) * 240;
+        document.getElementById('needleV').style.transform = `translateX(-50%) rotate(${angleV}deg)`;
+        document.getElementById('valV').textContent = "220 В";
+
+        // Амперметр (шкала до 4А)
+        const maxA = 4;
+        const angleA = -120 + (state.currentI / maxA) * 240;
+        document.getElementById('needleA').style.transform = `translateX(-50%) rotate(${angleA}deg)`;
+        document.getElementById('valA').textContent = state.currentI.toFixed(2) + " А";
+    }
+
+    function drawScene() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        const motorX = 80, motorY = 170, motorR = 30;
+        const pulleyX = 320, pulleyY = 50, pulleyR = 18;
+        const loadStartY = 210;
+        const loadEndY = 80;
+        
+        // 1. Лабораторный стол (основание)
+        ctx.fillStyle = '#a0aec0';
+        ctx.fillRect(20, 230, 360, 8);
+        ctx.fillStyle = '#cbd5e0';
+        ctx.fillRect(40, 238, 10, 15); // Ножка
+        ctx.fillRect(350, 238, 10, 15); // Ножка
+
+        // 2. Стойка блока
+        ctx.fillStyle = '#4a5568';
+        ctx.fillRect(pulleyX - 4, pulleyY + pulleyR, 8, 160);
+        // Основание стойки
+        ctx.fillRect(pulleyX - 15, 220, 30, 10);
+
+        // 3. Электродвигатель (корпус)
+        // Кронштейн
+        ctx.fillStyle = '#718096';
+        ctx.fillRect(motorX - 10, motorY + motorR, 20, 40);
+        ctx.fillRect(motorX - 20, 220, 40, 10);
+        // Корпус мотора
+        const gradM = ctx.createLinearGradient(motorX - motorR, motorY - motorR, motorX + motorR, motorY + motorR);
+        gradM.addColorStop(0, '#4a5568');
+        gradM.addColorStop(1, '#2d3748');
+        ctx.fillStyle = gradM;
+        ctx.beginPath();
+        ctx.arc(motorX, motorY, motorR, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 4. Ротор (вращение)
+        ctx.save();
+        ctx.translate(motorX, motorY);
+        ctx.rotate(state.rotation);
+        ctx.fillStyle = '#cbd5e0';
+        ctx.fillRect(-motorR + 8, -3, (motorR - 8) * 2, 6);
+        ctx.fillRect(-3, -motorR + 8, 6, (motorR - 8) * 2);
+        ctx.fillStyle = '#e53e3e';
+        ctx.beginPath();
+        ctx.arc(0, 0, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        
+        // 5. Вал от мотора к блоку
+        ctx.strokeStyle = '#a0aec0';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(motorX + motorR, motorY);
+        ctx.lineTo(pulleyX - pulleyR, pulleyY);
+        ctx.stroke();
+        
+        // 6. Блок (шкив с канавкой)
+        ctx.fillStyle = '#2d3748';
+        ctx.beginPath();
+        ctx.arc(pulleyX, pulleyY, pulleyR, 0, Math.PI * 2);
+        ctx.fill();
+        // Канавка
+        ctx.strokeStyle = '#718096';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(pulleyX, pulleyY, pulleyR - 4, 0, Math.PI * 2);
+        ctx.stroke();
+        // Центр блока
+        ctx.fillStyle = '#cbd5e0';
+        ctx.beginPath();
+        ctx.arc(pulleyX, pulleyY, 4, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 7. Верёвка и груз
+        const currentLoadY = loadStartY - state.liftProgress * (loadStartY - loadEndY);
+        
+        ctx.strokeStyle = '#744210';
+        ctx.lineWidth = 2;
+        // От вала к блоку
+        ctx.beginPath();
+        ctx.moveTo(motorX + motorR, motorY - 3);
+        ctx.lineTo(pulleyX - pulleyR + 2, pulleyY + 2);
+        ctx.stroke();
+        // От блока вниз к грузу
+        ctx.beginPath();
+        ctx.moveTo(pulleyX, pulleyY + pulleyR);
+        ctx.lineTo(pulleyX, currentLoadY - 5); // до крюка
+        ctx.stroke();
+        
+        // 8. Груз (с крюком)
+        const loadW = 40, loadH = 35;
+        // Крюк
+        ctx.strokeStyle = '#4a5568';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(pulleyX, currentLoadY - 2, 4, 0, Math.PI, false);
+        ctx.stroke();
+        // Тело груза
+        const gradW = ctx.createLinearGradient(pulleyX - loadW/2, currentLoadY, pulleyX + loadW/2, currentLoadY + loadH);
+        gradW.addColorStop(0, '#ed8936');
+        gradW.addColorStop(1, '#c05621');
+        ctx.fillStyle = gradW;
+        ctx.fillRect(pulleyX - loadW/2, currentLoadY, loadW, loadH);
+        ctx.strokeStyle = '#9c4221';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(pulleyX - loadW/2, currentLoadY, loadW, loadH);
+        
+        // Надпись на грузе
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(state.mass + ' кг', pulleyX, currentLoadY + loadH/2 + 4);
+        
+        // 9. Подписи
+        ctx.fillStyle = '#4a5568';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Электродвигатель', motorX, motorY + motorR + 55);
+        ctx.fillText('Блок', pulleyX, pulleyY - pulleyR - 8);
+        
+        // Шкала высоты
+        ctx.strokeStyle = '#a0aec0';
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(pulleyX + 35, loadStartY);
+        ctx.lineTo(pulleyX + 35, loadEndY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#718096';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('h = 1.0 м', pulleyX + 40, (loadStartY + loadEndY) / 2 + 3);
+    }
+
+    function animate() {
+        if (state.isRunning) {
+            const elapsed = performance.now() - state.startTime;
+            state.liftProgress = Math.min(elapsed / state.duration, 1);
+            state.rotation += 0.3; // скорость вращения
+            
+            const seconds = (elapsed / 1000).toFixed(2);
+            document.getElementById('timer').textContent = seconds + " с";
+            
+            if (state.liftProgress >= 1) {
+                state.isRunning = false;
+                state.currentI = 0;
+                document.getElementById('startBtn').disabled = false;
+                updateGauges();
+            }
+        }
+        drawScene();
+        requestAnimationFrame(animate);
+    }
+
+    // Инициализация
+    updateGauges();
+    drawScene();
+    animate();
+</script>
+
+</body>
+</html>
